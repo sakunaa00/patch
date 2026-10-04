@@ -5179,9 +5179,7 @@ local function f46(p73)
   uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   uiStroke.Parent = roxyToggleBtn
 
-  -- Robust drag handling: use absolute screen coordinates instead of mixing
-  -- scale/offset positions. Movement/release are tracked globally so the icon
-  -- stays draggable even when the cursor/finger leaves the button.
+
   local dragging = false
   local hasMoved = false
   local dragStart
@@ -5202,6 +5200,7 @@ local function f46(p73)
   local function clampIconPosition(x, y)
     local viewportSize = getViewportSize()
     local iconSize = roxyToggleBtn.AbsoluteSize
+
     local maxX = math.max(5, viewportSize.X - iconSize.X - 5)
     local maxY = math.max(5, viewportSize.Y - iconSize.Y - 5)
 
@@ -5231,6 +5230,65 @@ local function f46(p73)
     roxyToggleBtn.Position = UDim2.fromOffset(x, y)
   end
 
+  local function finishPress(input)
+    if not dragging then
+      return
+    end
+
+    dragging = false
+
+    local elapsed = tick() - pressTime
+    local magnitude = dragStart and input
+      and (input.Position - dragStart).Magnitude or 0
+
+    tweenService:Create(
+      roxyToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+      { Size = UDim2.new(0, 56, 0, 56) }
+    ):Play()
+
+    tweenService:Create(uiStroke, TweenInfo.new(0.15), {
+      Color = Color3.fromHex("#38BDF8"),
+      Thickness = 2.5,
+    }):Play()
+
+    -- Save normalized position only after an actual drag. This avoids changing
+    -- the default position simply by clicking the icon.
+    if hasMoved then
+      local viewportSize = getViewportSize()
+      local absolutePosition = roxyToggleBtn.AbsolutePosition
+      local iconSize = roxyToggleBtn.AbsoluteSize
+      local maxX = math.max(5, viewportSize.X - iconSize.X - 5)
+      local maxY = math.max(5, viewportSize.Y - iconSize.Y - 5)
+
+      roxyHubState.TogglePositionX = math.clamp(
+        (absolutePosition.X - 5) / math.max(1, maxX - 5), 0, 1
+      )
+      roxyHubState.TogglePositionY = math.clamp(
+        (absolutePosition.Y - 5) / math.max(1, maxY - 5), 0, 1
+      )
+    end
+
+    if not hasMoved and magnitude < 10 and elapsed < 0.35 then
+      pcall(function()
+        if v2 then
+          f2()
+        end
+
+        if p73.Closed then
+          p73:Open()
+        else
+          p73:Close()
+        end
+      end)
+    end
+
+    hasMoved = false
+    dragStart = nil
+    startPosition = nil
+  end
+
+  -- Start only from the icon. Movement/release are handled globally so the
+  -- drag remains reliable even when the pointer/finger leaves the icon.
   local iconBeganConnection = roxyToggleBtn.InputBegan:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1
       and input.UserInputType ~= Enum.UserInputType.Touch then
@@ -5273,67 +5331,17 @@ local function f46(p73)
       return
     end
 
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1
-      and input.UserInputType ~= Enum.UserInputType.Touch then
-      return
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+      or input.UserInputType == Enum.UserInputType.Touch then
+      finishPress(input)
     end
-
-    dragging = false
-
-    local elapsed = tick() - pressTime
-    local magnitude = dragStart
-      and (input.Position - dragStart).Magnitude
-      or 0
-
-    tweenService:Create(
-      roxyToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-      { Size = UDim2.new(0, 56, 0, 56) }
-    ):Play()
-
-    tweenService:Create(uiStroke, TweenInfo.new(0.15), {
-      Color = Color3.fromHex("#38BDF8"),
-      Thickness = 2.5,
-    }):Play()
-
-    if not hasMoved and magnitude < 10 and elapsed < 0.35 then
-      pcall(function()
-        if v2 then
-          f2()
-        end
-
-        if p73.Closed then
-          p73:Open()
-        else
-          p73:Close()
-        end
-      end)
-    end
-
-    hasMoved = false
-    dragStart = nil
-    startPosition = nil
-  end)
-
-  roxyToggleBtn.MouseEnter:Connect(function()
-    tweenService:Create(uiStroke, TweenInfo.new(0.2), {
-      Color = Color3.fromHex("#93C5FD"),
-      Thickness = 3.5,
-    }):Play()
-  end)
-
-  roxyToggleBtn.MouseLeave:Connect(function()
-    tweenService:Create(uiStroke, TweenInfo.new(0.2), {
-      Color = Color3.fromHex("#38BDF8"),
-      Thickness = 2.5,
-    }):Play()
   end)
 
   table.insert(_G.RoxyHubConnections, {
     Disconnect = function()
-      pcall(function() iconBeganConnection:Disconnect() end)
-      pcall(function() inputChangedConnection:Disconnect() end)
-      pcall(function() inputEndedConnection:Disconnect() end)
-      pcall(function() roxyHubMobileToggle4:Destroy() end)
+      pcall(function()
+        roxyHubMobileToggle4:Destroy()
+      end)
     end,
   })
 
