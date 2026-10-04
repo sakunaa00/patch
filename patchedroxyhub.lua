@@ -825,6 +825,11 @@ if roxyHubState.TargetSpecificEgg == nil then
   roxyHubState.TargetSpecificEgg = "Any Egg (Use Rarity Filter)"
 end
 
+-- Egg delivery destination. The egg selector above remains the only egg-selection control.
+if type(roxyHubState.DeliveryTargetPlayer) ~= "string" or roxyHubState.DeliveryTargetPlayer == "" then
+  roxyHubState.DeliveryTargetPlayer = "My Ranch"
+end
+
 if roxyHubState.FarmPriority == nil then
   roxyHubState.FarmPriority = "Highest Rarity First"
 end
@@ -3338,6 +3343,67 @@ local function f39(p60, p61)
   end
 end
 
+-- Resolve the ranch used by the delivery routine.
+-- "My Ranch" keeps the original behavior; a selected player redirects the same
+-- normal Baseplate touch/offload routine to that player's plot.
+local function f40_GetDeliveryPlot()
+  local targetName = roxyHubState.DeliveryTargetPlayer
+
+  if not targetName or targetName == "" or targetName == "My Ranch" then
+    return f12(), "My Ranch"
+  end
+
+  local targetPlayer = players:FindFirstChild(targetName)
+
+  if not targetPlayer or targetPlayer == localPlayer2 then
+    return f12(), "My Ranch"
+  end
+
+  local targetPlot
+
+  pcall(function()
+    if v15 and v15.GetPlot then
+      targetPlot = v15:GetPlot(targetPlayer)
+    end
+  end)
+
+  if not targetPlot then
+    local plots = workspaceService:FindFirstChild("Plots")
+
+    if plots then
+      for _, candidatePlot in ipairs(plots:GetChildren()) do
+        local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
+          or candidatePlot:GetAttribute("OwnerUserId")
+          or candidatePlot:GetAttribute("Owner")
+
+        if ownerAttr == targetPlayer.UserId
+          or tostring(ownerAttr) == tostring(targetPlayer.UserId) then
+          targetPlot = candidatePlot
+          break
+        end
+
+        local data = candidatePlot:FindFirstChild("Data")
+        local owner = data and data:FindFirstChild("Owner")
+
+        if owner and (owner.Value == targetPlayer
+          or tostring(owner.Value) == targetPlayer.Name
+          or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
+          targetPlot = candidatePlot
+          break
+        end
+
+        if candidatePlot.Name == targetPlayer.Name
+          or candidatePlot.Name == tostring(targetPlayer.UserId) then
+          targetPlot = candidatePlot
+          break
+        end
+      end
+    end
+  end
+
+  return targetPlot or f12(), targetPlot and targetPlayer.Name or "My Ranch"
+end
+
 local function f40(p62)
   local v162, v163, v164 = f13()
   local v165 = f12()
@@ -3347,7 +3413,8 @@ local function f40(p62)
   if v166 then
     return
   else
-    local baseplate = v165:FindFirstChild("Baseplate")
+    local deliveryPlot, deliveryLabel = f40_GetDeliveryPlot()
+    local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate")
 
     if not baseplate then
       return
@@ -3382,7 +3449,12 @@ local function f40(p62)
           end
         end
 
-        v33.Status = "Delivering to Plot..."
+        if deliveryLabel == "My Ranch" then
+          v33.Status = "Delivering to My Ranch..."
+        else
+          v33.Status = "Delivering to " .. tostring(deliveryLabel) .. "'s Ranch..."
+        end
+
         local v172 = baseplate.Position + Vector3.new(0, 3.5, 0)
         local magnitude4 = (v172 - v169.Position).Magnitude
 
@@ -5580,6 +5652,40 @@ Mode: %s | Sync Delay: %.2fs]], tostring(v33.Target or "None"), tostring(v33.Tar
       -- Preserve the old single-value setting for older config/code compatibility.
       roxyHubState.TargetSpecificEgg =
         selectedEggs[1] or "Any Egg (Use Rarity Filter)"
+    end,
+  })
+
+  -- Delivery destination uses the existing Target Specific Egg selection.
+  -- This dropdown only decides whose ranch receives the egg.
+  local deliveryPlayerValues = { "My Ranch" }
+
+  for _, player in ipairs(players:GetPlayers()) do
+    if player ~= localPlayer2 then
+      table.insert(deliveryPlayerValues, player.Name)
+    end
+  end
+
+  if roxyHubState.DeliveryTargetPlayer ~= "My Ranch" then
+    local foundDeliveryPlayer = false
+
+    for _, playerName in ipairs(deliveryPlayerValues) do
+      if playerName == roxyHubState.DeliveryTargetPlayer then
+        foundDeliveryPlayer = true
+        break
+      end
+    end
+
+    if not foundDeliveryPlayer then
+      roxyHubState.DeliveryTargetPlayer = "My Ranch"
+    end
+  end
+
+  v333.DeliveryTargetPlayer = section2:Dropdown({
+    Title = "Deliver Egg To",
+    Values = deliveryPlayerValues,
+    Value = roxyHubState.DeliveryTargetPlayer,
+    Callback = function(value81)
+      roxyHubState.DeliveryTargetPlayer = value81 or "My Ranch"
     end,
   })
 
