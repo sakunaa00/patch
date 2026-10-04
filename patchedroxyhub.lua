@@ -311,6 +311,8 @@ pcall(function()
     task.wait(0.5)
     virtualUser:Button2Up(Vector2.new(0, 0), workspaceService.CurrentCamera.CFrame)
   end)
+
+  table.insert(_G.RoxyHubConnections, connect)
 end)
 
 local require = getrenv and type(getrenv) == "function" and getrenv().require
@@ -825,6 +827,30 @@ if roxyHubState.TargetSpecificEgg == nil then
   roxyHubState.TargetSpecificEgg = "Any Egg (Use Rarity Filter)"
 end
 
+-- Normalize config-loaded map-style multi-select values into the array format
+-- expected by the UI while preserving the user's selected eggs.
+if type(roxyHubState.TargetSpecificEggs) == "table" then
+  local normalizedEggs = {}
+  local hasArrayValues = false
+
+  for _, selectedEgg in ipairs(roxyHubState.TargetSpecificEggs) do
+    if type(selectedEgg) == "string" and selectedEgg ~= "" then
+      hasArrayValues = true
+      table.insert(normalizedEggs, selectedEgg)
+    end
+  end
+
+  if not hasArrayValues then
+    for selectedEgg, isSelected in pairs(roxyHubState.TargetSpecificEggs) do
+      if isSelected == true and type(selectedEgg) == "string" then
+        table.insert(normalizedEggs, selectedEgg)
+      end
+    end
+  end
+
+  roxyHubState.TargetSpecificEggs = normalizedEggs
+end
+
 if roxyHubState.FarmPriority == nil then
   roxyHubState.FarmPriority = "Highest Rarity First"
 end
@@ -1134,7 +1160,7 @@ local function f14(p13)
     waitForChild:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
   end)
 
-  waitForChild.StateChanged:Connect(function(p14, p15)
+  table.insert(_G.RoxyHubConnections, waitForChild.StateChanged:Connect(function(p14, p15)
     if _G.RoxyHubInstanceId ~= roxyHubInstanceId then
       return
     end
@@ -1150,7 +1176,7 @@ local function f14(p13)
         waitForChild2.AssemblyLinearVelocity = Vector3.zero
       end
     end
-  end)
+  end))
 end
 
 local function f15()
@@ -1184,7 +1210,7 @@ if localPlayer2.Character then
   f14(localPlayer2.Character)
 end
 
-localPlayer2.CharacterAdded:Connect(function(character2)
+table.insert(_G.RoxyHubConnections, localPlayer2.CharacterAdded:Connect(function(character2)
   pcall(function()
     local ragdoll = localPlayer2:FindFirstChild("PlayerScripts")
       and localPlayer2.PlayerScripts:FindFirstChild("Game")
@@ -1196,7 +1222,7 @@ localPlayer2.CharacterAdded:Connect(function(character2)
   end)
 
   f14(character2)
-end)
+end))
 
 pcall(function()
   local net = replicatedStorage:FindFirstChild("packages")
@@ -1205,7 +1231,7 @@ pcall(function()
   local reRagdoll = net and net:FindFirstChild("RE/Ragdoll")
 
   if reRagdoll and reRagdoll:IsA("RemoteEvent") then
-    reRagdoll.OnClientEvent:Connect(function(p16, p17)
+    table.insert(_G.RoxyHubConnections, reRagdoll.OnClientEvent:Connect(function(p16, p17)
       if _G.RoxyHubInstanceId ~= roxyHubInstanceId then
         return
       end
@@ -1226,7 +1252,7 @@ pcall(function()
           end
         end)
       end
-    end)
+    end))
   end
 end)
 
@@ -1969,7 +1995,7 @@ local function f27(p26, p27)
   end
 end
 
-runService.Stepped:Connect(function()
+table.insert(_G.RoxyHubConnections, runService.Stepped:Connect(function()
   if roxyHubState.NoClip or v33.IsFarming or v33.CurrentTween ~= nil then
     local character5 = localPlayer2.Character
 
@@ -1988,9 +2014,9 @@ runService.Stepped:Connect(function()
       end
     end
   end
-end)
+end))
 
-userInputService.JumpRequest:Connect(function()
+table.insert(_G.RoxyHubConnections, userInputService.JumpRequest:Connect(function()
   if roxyHubState.InfiniteJump then
     local v92, v93, v94 = f13()
 
@@ -1998,9 +2024,9 @@ userInputService.JumpRequest:Connect(function()
       v94:ChangeState(Enum.HumanoidStateType.Jumping)
     end
   end
-end)
+end))
 
-runService.RenderStepped:Connect(function()
+table.insert(_G.RoxyHubConnections, runService.RenderStepped:Connect(function()
   if roxyHubState.SpeedModEnabled and roxyHubState.SpeedMultiplier > 1 then
     local v95, v96, v97 = f13()
 
@@ -2008,7 +2034,7 @@ runService.RenderStepped:Connect(function()
       v97.WalkSpeed = 92 * roxyHubState.SpeedMultiplier
     end
   end
-end)
+end))
 
 local v98 = {}
 local v99 = {}
@@ -4239,7 +4265,7 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-  while true do
+  while _G.RoxyHubInstanceId == roxyHubInstanceId do
     task.wait(0.5)
 
     if roxyHubState.AutoUpgradeLuck then
@@ -4263,7 +4289,7 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-  while true do
+  while _G.RoxyHubInstanceId == roxyHubInstanceId do
     task.wait(1)
 
     if roxyHubState.AutoUnlockNests then
@@ -5160,7 +5186,6 @@ local function f46(p73)
   local roxyToggleBtn = Instance.new("ImageButton")
   roxyToggleBtn.Name = "RoxyToggleBtn"
   roxyToggleBtn.Size = UDim2.new(0, 56, 0, 56)
-  roxyToggleBtn.Position = UDim2.new(0.35, 0, 0.15, 0)
   roxyToggleBtn.BackgroundColor3 = Color3.fromHex("#0B0F19")
   roxyToggleBtn.BackgroundTransparency = 0.2
   roxyToggleBtn.Image = "rbxassetid://85047195026655"
@@ -5179,182 +5204,216 @@ local function f46(p73)
   uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   uiStroke.Parent = roxyToggleBtn
 
-  local v325 = false
-  local v326 = 0
-  local v327 = false
-  local position10, position11
+  -- Persist the icon as a normalized screen position. This keeps its relative
+  -- location after reloads while still adapting to different resolutions.
+  local savedX = tonumber(roxyHubState.TogglePositionX)
+  local savedY = tonumber(roxyHubState.TogglePositionY)
 
-  local function f47(p74)
-    if not position10 or not position11 then
+  if not savedX or savedX < 0 or savedX > 1 then
+    savedX = 0.35
+  end
+
+  if not savedY or savedY < 0 or savedY > 1 then
+    savedY = 0.15
+  end
+
+  if tonumber(roxyHubState.TogglePositionX) and tonumber(roxyHubState.TogglePositionY) then
+    task.defer(function()
+      if not roxyToggleBtn or not roxyToggleBtn.Parent then
+        return
+      end
+
+      local camera = workspaceService.CurrentCamera
+      local viewportSize = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+      local iconSize = roxyToggleBtn.AbsoluteSize
+      local maxX = math.max(5, viewportSize.X - iconSize.X - 5)
+      local maxY = math.max(5, viewportSize.Y - iconSize.Y - 5)
+
+      roxyToggleBtn.Position = UDim2.fromOffset(
+        5 + savedX * math.max(0, maxX - 5),
+        5 + savedY * math.max(0, maxY - 5)
+      )
+    end)
+  else
+    roxyToggleBtn.Position = UDim2.new(0.35, 0, 0.15, 0)
+  end
+
+  local dragging = false
+  local hasMoved = false
+  local dragStart
+  local startPosition
+  local pressTime = 0
+  local releaseInput
+
+  local function getViewportSize()
+    local camera = workspaceService.CurrentCamera
+    local viewportSize = camera and camera.ViewportSize
+
+    if viewportSize and viewportSize.X > 0 and viewportSize.Y > 0 then
+      return viewportSize
+    end
+
+    return Vector2.new(1920, 1080)
+  end
+
+  local function clampIconPosition(x, y)
+    local viewportSize = getViewportSize()
+    local iconSize = roxyToggleBtn.AbsoluteSize
+
+    local maxX = math.max(5, viewportSize.X - iconSize.X - 5)
+    local maxY = math.max(5, viewportSize.Y - iconSize.Y - 5)
+
+    return math.clamp(x, 5, maxX), math.clamp(y, 5, maxY)
+  end
+
+  local function updateDrag(input)
+    if not dragging or not dragStart or not startPosition then
       return
     end
 
-    local v328 = p74.Position - position11
-    local viewportSize = workspaceService.CurrentCamera
-        and workspaceService.CurrentCamera.ViewportSize
-      or Vector2.new(1920, 1080)
+    local delta = input.Position - dragStart
 
-    -- Use the icon's actual screen position instead of its UDim2 offsets.
-    -- This fixes the old Scale/Offset mismatch that made the minimized icon jump/stick.
-    local v329 = math.clamp(position10.X + v328.X, 5, math.max(5, viewportSize.X - 61))
-    local v330 = math.clamp(position10.Y + v328.Y, 5, math.max(5, viewportSize.Y - 61))
-    roxyToggleBtn.Position = UDim2.fromOffset(v329, v330)
+    if not hasMoved and delta.Magnitude > 6 then
+      hasMoved = true
+    end
+
+    if not hasMoved then
+      return
+    end
+
+    local x, y = clampIconPosition(
+      startPosition.X + delta.X,
+      startPosition.Y + delta.Y
+    )
+
+    roxyToggleBtn.Position = UDim2.fromOffset(x, y)
   end
 
-  roxyToggleBtn.InputBegan:Connect(function(input2)
-    if input2.UserInputType == Enum.UserInputType.MouseButton1
-      or input2.UserInputType == Enum.UserInputType.Touch then
-      v325 = true
-      v327 = false
+  local function finishPress(input)
+    if not dragging then
+      return
+    end
 
-      -- Capture the real on-screen position. The icon starts with Scale positioning.
-      position10 = Vector2.new(
-        roxyToggleBtn.AbsolutePosition.X,
-        roxyToggleBtn.AbsolutePosition.Y
+    dragging = false
+    releaseInput = input
+
+    local elapsed = tick() - pressTime
+    local magnitude = dragStart and input
+      and (input.Position - dragStart).Magnitude or 0
+
+    tweenService:Create(
+      roxyToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+      { Size = UDim2.new(0, 56, 0, 56) }
+    ):Play()
+
+    tweenService:Create(uiStroke, TweenInfo.new(0.15), {
+      Color = Color3.fromHex("#38BDF8"),
+      Thickness = 2.5,
+    }):Play()
+
+    -- Save normalized position only after an actual drag. This avoids changing
+    -- the default position simply by clicking the icon.
+    if hasMoved then
+      local viewportSize = getViewportSize()
+      local absolutePosition = roxyToggleBtn.AbsolutePosition
+      local iconSize = roxyToggleBtn.AbsoluteSize
+      local maxX = math.max(5, viewportSize.X - iconSize.X - 5)
+      local maxY = math.max(5, viewportSize.Y - iconSize.Y - 5)
+
+      roxyHubState.TogglePositionX = math.clamp(
+        (absolutePosition.X - 5) / math.max(1, maxX - 5), 0, 1
       )
-      position11 = input2.Position
-      v326 = tick()
+      roxyHubState.TogglePositionY = math.clamp(
+        (absolutePosition.Y - 5) / math.max(1, maxY - 5), 0, 1
+      )
+    end
 
-      tweenService:Create(
-        roxyToggleBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { Size = UDim2.new(0, 50, 0, 50) }
-      ):Play()
+    if not hasMoved and magnitude < 10 and elapsed < 0.35 then
+      pcall(function()
+        if v2 then
+          f2()
+        end
 
-      tweenService:Create(uiStroke, TweenInfo.new(0.12), {
-        Color = Color3.fromHex("#60A5FA"),
-        Thickness = 3,
-      }):Play()
-
-      input2.Changed:Connect(function()
-        if input2.UserInputState == Enum.UserInputState.End then
-          v325 = false
+        if p73.Closed then
+          p73:Open()
+        else
+          p73:Close()
         end
       end)
     end
-  end)
 
-  -- Listen globally so dragging keeps working even when the pointer/finger moves
-  -- outside the 56x56 icon. This is more reliable on both mouse and touch.
-  userInputService.InputChanged:Connect(function(input3)
-    if not v325 then
+    hasMoved = false
+    dragStart = nil
+    startPosition = nil
+    releaseInput = nil
+  end
+
+  -- Start only from the icon. Movement/release are handled globally so the
+  -- drag remains reliable even when the pointer/finger leaves the icon.
+  local iconBeganConnection = roxyToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+      and input.UserInputType ~= Enum.UserInputType.Touch then
       return
     end
 
-    if input3.UserInputType == Enum.UserInputType.MouseMovement
-      or input3.UserInputType == Enum.UserInputType.Touch then
-      if position11 and (input3.Position - position11).Magnitude > 6 then
-        v327 = true
-      end
+    dragging = true
+    hasMoved = false
+    dragStart = input.Position
+    startPosition = Vector2.new(
+      roxyToggleBtn.AbsolutePosition.X,
+      roxyToggleBtn.AbsolutePosition.Y
+    )
+    pressTime = tick()
 
-      if v327 then
-        f47(input3)
-      end
+    tweenService:Create(
+      roxyToggleBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+      { Size = UDim2.new(0, 50, 0, 50) }
+    ):Play()
+
+    tweenService:Create(uiStroke, TweenInfo.new(0.12), {
+      Color = Color3.fromHex("#60A5FA"),
+      Thickness = 3,
+    }):Play()
+  end)
+
+  local inputChangedConnection = userInputService.InputChanged:Connect(function(input)
+    if not dragging then
+      return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+      or input.UserInputType == Enum.UserInputType.Touch then
+      updateDrag(input)
     end
   end)
 
-  roxyToggleBtn.InputEnded:Connect(function(input4)
-    if input4.UserInputType == Enum.UserInputType.MouseButton1
-      or input4.UserInputType == Enum.UserInputType.Touch then
-      v325 = false
+  local inputEndedConnection = userInputService.InputEnded:Connect(function(input)
+    if not dragging then
+      return
+    end
 
-      tweenService:Create(
-        roxyToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-        { Size = UDim2.new(0, 56, 0, 56) }
-      ):Play()
-
-      tweenService:Create(uiStroke, TweenInfo.new(0.15), {
-        Color = Color3.fromHex("#38BDF8"),
-        Thickness = 2.5,
-      }):Play()
-
-      local v331 = tick() - v326
-      local magnitude5 = (input4.Position - (position11 or input4.Position)).Magnitude
-
-      if not v327 and magnitude5 < 10 and v331 < 0.35 then
-        pcall(function()
-          if v2 then
-            f2()
-          end
-
-          if p73.Closed then
-            p73:Open()
-          else
-            p73:Close()
-          end
-        end)
-      end
-
-      v327 = false
-      position10 = nil
-      position11 = nil
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+      or input.UserInputType == Enum.UserInputType.Touch then
+      finishPress(input)
     end
   end)
+
+  -- Register the real connections so the next script execution disconnects
+  -- them. This prevents duplicate global InputChanged/InputEnded listeners.
+  table.insert(_G.RoxyHubConnections, iconBeganConnection)
+  table.insert(_G.RoxyHubConnections, inputChangedConnection)
+  table.insert(_G.RoxyHubConnections, inputEndedConnection)
 
   table.insert(_G.RoxyHubConnections, {
-    Disconnect = function() pcall(function() roxyHubMobileToggle4:Destroy() end) end,
+    Disconnect = function()
+      pcall(function()
+        roxyHubMobileToggle4:Destroy()
+      end)
+    end,
   })
 
   return roxyHubMobileToggle4
 end
-
--- Register custom theme BEFORE CreateWindow
-if v324 and v324.AddTheme then
-    v324:AddTheme({
-        Name = "RoxyHub",
-
-        Accent = Color3.fromHex("#1D4ED8"),
-        Dialog = Color3.fromHex("#0F172A"),
-        Text = Color3.fromHex("#F8FAFC"),
-        Placeholder = Color3.fromHex("#94A3B8"),
-        Background = Color3.fromHex("#0B0F19"),
-        Button = Color3.fromHex("#2563EB"),
-        Icon = Color3.fromHex("#38BDF8"),
-
-        Primary = Color3.fromHex("#3B82F6"),
-        Toggle = Color3.fromHex("#3B82F6"),
-        Slider = Color3.fromHex("#3B82F6"),
-        Checkbox = Color3.fromHex("#3B82F6"),
-
-        PanelBackground = Color3.fromHex("#0F172A"),
-        PanelBackgroundTransparency = 0.15,
-
-        ElementBackground = Color3.fromHex("#1E293B"),
-        ElementBackgroundTransparency = 0,
-    })
-end
-
-local window = v324:CreateWindow({
-  Title = "Ride A Pet",
-  Icon = "rbxassetid://85047195026655",
-  IconSize = 44,
-  Author = "by RoxyHub",
-  Folder = "RoxyHub_RideAPet",
-  Size = UDim2.fromOffset(620, 510),
-  Transparent = true,
-  Theme = "RoxyHub",
-  Resizable = true,
-  OpenButton = { Enabled = false },
-})
-
-_G.RoxyHubInstance = window
-
-pcall(function()
-  if window and window.UIElements and window.UIElements.Main and window.UIElements.Main.Main then
-    for index61, value74 in ipairs(window.UIElements.Main.Main.Topbar.Left:GetChildren()) do
-      if value74:IsA("Frame") and value74.Name == "Frame" then
-        value74.Size = UDim2.new(0, 44, 0, 44)
-
-        for index62, value75 in ipairs(value74:GetChildren()) do
-          if value75:IsA("Frame") then
-            value75.Size = UDim2.new(0, 44, 0, 44)
-            value75.AnchorPoint = Vector2.new(0.5, 0.5)
-            value75.Position = UDim2.new(0.5, 0, 0.5, 0)
-          end
-        end
-      end
-    end
-  end
-end)
 
 local v332 = f46(window)
 window:Tag({ Title = "Free", Color = Color3.fromHex("#1E3A8A"), Border = true })
@@ -5510,13 +5569,34 @@ Mode: %s | Sync Delay: %.2fs]], tostring(v33.Target or "None"), tostring(v33.Tar
       local selectedEggs = {}
 
       if type(value80) == "table" then
+        local foundArrayValue = false
+
+        -- WindUI versions may return either an array of selected labels
+        -- or a map like { ["Golden Egg [Legendary]"] = true }.
         for _, selectedEgg in ipairs(value80) do
+          foundArrayValue = true
+
           if selectedEgg == "Any Egg (Use Rarity Filter)" then
             selectedEggs = {}
             break
           end
 
-          table.insert(selectedEggs, selectedEgg)
+          if type(selectedEgg) == "string" and selectedEgg ~= "" then
+            table.insert(selectedEggs, selectedEgg)
+          end
+        end
+
+        if not foundArrayValue then
+          for selectedEgg, isSelected in pairs(value80) do
+            if isSelected == true and type(selectedEgg) == "string" then
+              if selectedEgg == "Any Egg (Use Rarity Filter)" then
+                selectedEggs = {}
+                break
+              end
+
+              table.insert(selectedEggs, selectedEgg)
+            end
+          end
         end
       elseif type(value80) == "string"
         and value80 ~= ""
