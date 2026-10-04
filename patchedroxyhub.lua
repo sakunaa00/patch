@@ -5122,20 +5122,29 @@ Color3.fromHex("#38BDF8")
 Color3.fromHex("#1E3A8A")
 
 local function f46(p73)
-  local playerGui2 = localPlayer2:WaitForChild("PlayerGui")
+  local playerGui2
 
-  -- Remove any older toggle instance.
+  if not playerGui2 then
+    playerGui2 = localPlayer2:WaitForChild("PlayerGui")
+  end
+
   pcall(function()
-    for _, parent in ipairs({
-      playerGui2,
-      localPlayer2:FindFirstChild("PlayerGui"),
-      coreGui,
-      gethui and gethui() or nil,
-    }) do
-      if parent then
-        local oldToggle = parent:FindFirstChild("RoxyHub_MobileToggle")
-        if oldToggle then oldToggle:Destroy() end
-      end
+    local roxyHubMobileToggle = playerGui2:FindFirstChild("RoxyHub_MobileToggle")
+
+    if roxyHubMobileToggle then
+      roxyHubMobileToggle:Destroy()
+    end
+
+    local roxyHubMobileToggle2 = localPlayer2.PlayerGui:FindFirstChild("RoxyHub_MobileToggle")
+
+    if roxyHubMobileToggle2 then
+      roxyHubMobileToggle2:Destroy()
+    end
+
+    local roxyHubMobileToggle3 = coreGui:FindFirstChild("RoxyHub_MobileToggle")
+
+    if roxyHubMobileToggle3 then
+      roxyHubMobileToggle3:Destroy()
     end
   end)
 
@@ -5150,14 +5159,13 @@ local function f46(p73)
 
   local roxyToggleBtn = Instance.new("ImageButton")
   roxyToggleBtn.Name = "RoxyToggleBtn"
-  roxyToggleBtn.Size = UDim2.fromOffset(56, 56)
+  roxyToggleBtn.Size = UDim2.new(0, 56, 0, 56)
   roxyToggleBtn.Position = UDim2.new(0.35, 0, 0.15, 0)
   roxyToggleBtn.BackgroundColor3 = Color3.fromHex("#0B0F19")
   roxyToggleBtn.BackgroundTransparency = 0.2
   roxyToggleBtn.Image = "rbxassetid://85047195026655"
   roxyToggleBtn.ScaleType = Enum.ScaleType.Fit
   roxyToggleBtn.AutoButtonColor = false
-  roxyToggleBtn.Active = true
   roxyToggleBtn.ZIndex = 99999
   roxyToggleBtn.Parent = roxyHubMobileToggle4
 
@@ -5171,162 +5179,119 @@ local function f46(p73)
   uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   uiStroke.Parent = roxyToggleBtn
 
-  -- Drag state. Use pixel coordinates throughout the drag operation.
-  local dragging = false
-  local dragged = false
-  local dragStart = Vector2.zero
-  local startPosition = Vector2.zero
-  local dragInput = nil
-  local pressStartedAt = 0
+  local v325 = false
+  local v326 = 0
+  local v327 = false
+  local position10, position11
 
-  local BUTTON_SIZE = 56
-  local DRAG_THRESHOLD = 6
-  local CLICK_THRESHOLD = 10
-  local CLICK_TIME = 0.35
-
-  local function getViewportSize()
-    local camera = workspaceService.CurrentCamera
-    return camera and camera.ViewportSize or Vector2.new(1920, 1080)
-  end
-
-  local function clampPosition(position)
-    local viewport = getViewportSize()
-    local maxX = math.max(5, viewport.X - BUTTON_SIZE - 5)
-    local maxY = math.max(5, viewport.Y - BUTTON_SIZE - 5)
-
-    return Vector2.new(
-      math.clamp(position.X, 5, maxX),
-      math.clamp(position.Y, 5, maxY)
-    )
-  end
-
-  local function updateDrag(input)
-    if not dragging or not dragInput then return end
-
-    local delta = input.Position - dragStart
-
-    if not dragged and delta.Magnitude >= DRAG_THRESHOLD then
-      dragged = true
+  local function f47(p74)
+    if not position10 or not position11 then
+      return
     end
 
-    if dragged then
-      local newPosition = clampPosition(startPosition + delta)
-      roxyToggleBtn.Position = UDim2.fromOffset(newPosition.X, newPosition.Y)
-    end
+    local v328 = p74.Position - position11
+    local viewportSize = workspaceService.CurrentCamera
+        and workspaceService.CurrentCamera.ViewportSize
+      or Vector2.new(1920, 1080)
+
+    -- Use the icon's actual screen position instead of its UDim2 offsets.
+    -- This fixes the old Scale/Offset mismatch that made the minimized icon jump/stick.
+    local v329 = math.clamp(position10.X + v328.X, 5, math.max(5, viewportSize.X - 61))
+    local v330 = math.clamp(position10.Y + v328.Y, 5, math.max(5, viewportSize.Y - 61))
+    roxyToggleBtn.Position = UDim2.fromOffset(v329, v330)
   end
 
-  local function finishPress(input)
-    if not dragging then return end
+  roxyToggleBtn.InputBegan:Connect(function(input2)
+    if input2.UserInputType == Enum.UserInputType.MouseButton1
+      or input2.UserInputType == Enum.UserInputType.Touch then
+      v325 = true
+      v327 = false
 
-    dragging = false
-    dragInput = nil
-
-    local elapsed = os.clock() - pressStartedAt
-    local movement = (input.Position - dragStart).Magnitude
-    local wasClick = not dragged
-      and movement < CLICK_THRESHOLD
-      and elapsed < CLICK_TIME
-
-    dragged = false
-
-    tweenService:Create(
-      roxyToggleBtn,
-      TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-      { Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE) }
-    ):Play()
-
-    tweenService:Create(uiStroke, TweenInfo.new(0.15), {
-      Color = Color3.fromHex("#38BDF8"),
-      Thickness = 2.5,
-    }):Play()
-
-    if wasClick then
-      pcall(function()
-        if v2 then f2() end
-
-        if p73.Closed then
-          p73:Open()
-        else
-          p73:Close()
-        end
-      end)
-    end
-  end
-
-  -- Begin drag/tap. AbsolutePosition fixes the old Scale/Offset snapping bug.
-  roxyToggleBtn.InputBegan:Connect(function(input)
-    local inputType = input.UserInputType
-
-    if inputType == Enum.UserInputType.MouseButton1
-      or inputType == Enum.UserInputType.Touch then
-      dragging = true
-      dragged = false
-      dragInput = input
-      dragStart = input.Position
-      startPosition = clampPosition(Vector2.new(
+      -- Capture the real on-screen position. The icon starts with Scale positioning.
+      position10 = Vector2.new(
         roxyToggleBtn.AbsolutePosition.X,
         roxyToggleBtn.AbsolutePosition.Y
-      ))
-      pressStartedAt = os.clock()
+      )
+      position11 = input2.Position
+      v326 = tick()
 
       tweenService:Create(
-        roxyToggleBtn,
-        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { Size = UDim2.fromOffset(50, 50) }
+        roxyToggleBtn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { Size = UDim2.new(0, 50, 0, 50) }
       ):Play()
 
       tweenService:Create(uiStroke, TweenInfo.new(0.12), {
         Color = Color3.fromHex("#60A5FA"),
         Thickness = 3,
       }):Play()
+
+      input2.Changed:Connect(function()
+        if input2.UserInputState == Enum.UserInputState.End then
+          v325 = false
+        end
+      end)
     end
   end)
 
-  -- Track movement globally so dragging continues after leaving the icon.
-  local inputChangedConnection = userInputService.InputChanged:Connect(function(input)
-    if not dragging then return end
+  -- Listen globally so dragging keeps working even when the pointer/finger moves
+  -- outside the 56x56 icon. This is more reliable on both mouse and touch.
+  userInputService.InputChanged:Connect(function(input3)
+    if not v325 then
+      return
+    end
 
-    local inputType = input.UserInputType
-    if inputType == Enum.UserInputType.MouseMovement
-      or inputType == Enum.UserInputType.Touch then
-      updateDrag(input)
+    if input3.UserInputType == Enum.UserInputType.MouseMovement
+      or input3.UserInputType == Enum.UserInputType.Touch then
+      if position11 and (input3.Position - position11).Magnitude > 6 then
+        v327 = true
+      end
+
+      if v327 then
+        f47(input3)
+      end
     end
   end)
 
-  local inputEndedConnection = userInputService.InputEnded:Connect(function(input)
-    if not dragging then return end
+  roxyToggleBtn.InputEnded:Connect(function(input4)
+    if input4.UserInputType == Enum.UserInputType.MouseButton1
+      or input4.UserInputType == Enum.UserInputType.Touch then
+      v325 = false
 
-    local inputType = input.UserInputType
-    if inputType == Enum.UserInputType.MouseButton1
-      or inputType == Enum.UserInputType.Touch then
-      finishPress(input)
-    end
-  end)
+      tweenService:Create(
+        roxyToggleBtn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Size = UDim2.new(0, 56, 0, 56) }
+      ):Play()
 
-  roxyToggleBtn.MouseEnter:Connect(function()
-    if not dragging then
-      tweenService:Create(uiStroke, TweenInfo.new(0.2), {
-        Color = Color3.fromHex("#93C5FD"),
-        Thickness = 3.5,
-      }):Play()
-    end
-  end)
-
-  roxyToggleBtn.MouseLeave:Connect(function()
-    if not dragging then
-      tweenService:Create(uiStroke, TweenInfo.new(0.2), {
+      tweenService:Create(uiStroke, TweenInfo.new(0.15), {
         Color = Color3.fromHex("#38BDF8"),
         Thickness = 2.5,
       }):Play()
+
+      local v331 = tick() - v326
+      local magnitude5 = (input4.Position - (position11 or input4.Position)).Magnitude
+
+      if not v327 and magnitude5 < 10 and v331 < 0.35 then
+        pcall(function()
+          if v2 then
+            f2()
+          end
+
+          if p73.Closed then
+            p73:Open()
+          else
+            p73:Close()
+          end
+        end)
+      end
+
+      v327 = false
+      position10 = nil
+      position11 = nil
     end
   end)
 
   table.insert(_G.RoxyHubConnections, {
-    Disconnect = function()
-      pcall(function() inputChangedConnection:Disconnect() end)
-      pcall(function() inputEndedConnection:Disconnect() end)
-      pcall(function() roxyHubMobileToggle4:Destroy() end)
-    end,
+    Disconnect = function() pcall(function() roxyHubMobileToggle4:Destroy() end) end,
   })
 
   return roxyHubMobileToggle4
