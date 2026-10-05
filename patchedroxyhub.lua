@@ -3343,6 +3343,30 @@ local function f39(p60, p61)
   end
 end
 
+local function f40_GetRanchCenter()
+  local plots = workspaceService:FindFirstChild("Plots")
+  if not plots then
+    return nil
+  end
+
+  local total = Vector3.zero
+  local count = 0
+
+  for _, candidatePlot in ipairs(plots:GetChildren()) do
+    local candidateBaseplate = candidatePlot:FindFirstChild("Baseplate", true)
+    if candidateBaseplate and candidateBaseplate:IsA("BasePart") then
+      total = total + candidateBaseplate.Position
+      count = count + 1
+    end
+  end
+
+  if count == 0 then
+    return nil
+  end
+
+  return total / count
+end
+
 local function f40(p62)
   local v162, v163, v164 = f13()
   local v165 = f12()
@@ -3357,6 +3381,7 @@ local function f40(p62)
     local deliveryPlot = v165
     local deliveryLabel = "My Ranch"
     local selectedName = roxyHubState.DeliveryTargetPlayer
+    local centerDrop = false
 
     if selectedName and selectedName ~= "" and selectedName ~= "My Ranch" then
       local targetPlayer = players:FindFirstChild(selectedName)
@@ -3366,111 +3391,29 @@ local function f40(p62)
         return false
       end
 
-      local targetPlot
-
-      -- Prefer the game's own plot resolver.
-      pcall(function()
-        if v15 and v15.GetPlot then
-          targetPlot = v15:GetPlot(targetPlayer)
-        end
-      end)
-
-      -- Match the same ownership patterns used by f12().
-      if not targetPlot then
-        local plots = workspaceService:FindFirstChild("Plots")
-
-        if plots then
-          for _, candidatePlot in ipairs(plots:GetChildren()) do
-            local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
-              or candidatePlot:GetAttribute("OwnerUserId")
-              or candidatePlot:GetAttribute("Owner")
-
-            if ownerAttr == targetPlayer.UserId
-              or tostring(ownerAttr) == tostring(targetPlayer.UserId)
-              or tostring(ownerAttr) == targetPlayer.Name then
-              targetPlot = candidatePlot
-              break
-            end
-
-            local data = candidatePlot:FindFirstChild("Data")
-            local owner = data and data:FindFirstChild("Owner")
-
-            if owner and (owner.Value == targetPlayer
-              or tostring(owner.Value) == targetPlayer.Name
-              or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
-              targetPlot = candidatePlot
-              break
-            end
-
-            if candidatePlot.Name == targetPlayer.Name
-              or candidatePlot.Name == tostring(targetPlayer.UserId) then
-              targetPlot = candidatePlot
-              break
-            end
-
-            local pets = candidatePlot:FindFirstChild("Pets")
-            if pets then
-              for _, pet in ipairs(pets:GetChildren()) do
-                local petOwner = pet:GetAttribute("OwnerUserId") or pet:GetAttribute("Owner")
-                if petOwner == targetPlayer.UserId
-                  or tostring(petOwner) == tostring(targetPlayer.UserId)
-                  or tostring(petOwner) == targetPlayer.Name then
-                  targetPlot = candidatePlot
-                  break
-                end
-              end
-            end
-
-            if targetPlot then
-              break
-            end
-          end
-        end
-      end
-
-      -- Spatial fallback for games where ownership attributes are not exposed.
-      if not targetPlot then
-        local targetRoot = targetPlayer.Character
-          and (targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            or targetPlayer.Character:FindFirstChildWhichIsA("BasePart"))
-        local plots = workspaceService:FindFirstChild("Plots")
-        local bestPlot, bestDistance = nil, math.huge
-
-        if targetRoot and plots then
-          for _, candidatePlot in ipairs(plots:GetChildren()) do
-            local candidateBaseplate = candidatePlot:FindFirstChild("Baseplate", true)
-            if candidateBaseplate and candidateBaseplate:IsA("BasePart") then
-              local distance = (candidateBaseplate.Position - targetRoot.Position).Magnitude
-              if distance < bestDistance then
-                bestDistance = distance
-                bestPlot = candidatePlot
-              end
-            end
-          end
-        end
-
-        if bestPlot and bestDistance <= 1000 then
-          targetPlot = bestPlot
-        end
-      end
-
-      local targetBaseplate = targetPlot and targetPlot:FindFirstChild("Baseplate", true)
-
-      if not targetPlot or not targetBaseplate or not targetBaseplate:IsA("BasePart") then
-        v33.Status = "Delivery failed: could not locate " .. tostring(targetPlayer.Name) .. "'s ranch."
-        return false
-      end
-
-      deliveryPlot = targetPlot
+      -- Cross-ranch delivery fallback: use the calculated center of all ranches.
+      centerDrop = true
       deliveryLabel = targetPlayer.Name
     end
 
     local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate", true)
+    local destinationPosition
 
-    if not baseplate then
+    if centerDrop then
+      destinationPosition = f40_GetRanchCenter()
+      if not destinationPosition then
+        v33.Status = "Delivery failed: could not calculate ranch center."
+        return false
+      end
+      v33.Status = "Dropping egg at the center of all ranches for " .. tostring(deliveryLabel) .. "..."
+    elseif not baseplate then
       v33.Status = "Delivery failed: destination Baseplate not found."
       return false
     else
+      destinationPosition = baseplate.Position
+    end
+
+    if centerDrop or baseplate then
       f27(v163, v164)
       local v168, v169, v170 = f13()
 
@@ -3507,7 +3450,7 @@ local function f40(p62)
           v33.Status = "Delivering to " .. tostring(deliveryLabel) .. "'s Ranch..."
         end
 
-        local v172 = baseplate.Position + Vector3.new(0, 3.5, 0)
+        local v172 = destinationPosition + Vector3.new(0, 3.5, 0)
         local magnitude4 = (v172 - v169.Position).Magnitude
 
         if magnitude4 > 15 then
@@ -3576,16 +3519,26 @@ local function f40(p62)
           end
         end
 
-        -- Touch the selected ranch's Baseplate, not the local ranch's Baseplate.
-        -- Repeat briefly because the server may process the basket asynchronously.
-        if firetouchinterest then
+        local v179 = os.clock()
+        local delivered = false
+
+        if centerDrop then
+          -- Use the game's existing basket-drop remote at the calculated ranch center.
+          -- This avoids requiring ownership of another player's ranch.
+          local basket5 = localPlayer2:FindFirstChild("Basket")
+          if basket5 and basketDrop then
+            for _, eggItem in ipairs(basket5:GetChildren()) do
+              pcall(function()
+                basketDrop:FireServer(eggItem:GetAttribute("Egg") or eggItem.Name)
+              end)
+              task.wait(0.08)
+            end
+          end
+        elseif firetouchinterest then
           pcall(firetouchinterest, v169, baseplate, 0)
           task.wait(0.04)
           pcall(firetouchinterest, v169, baseplate, 1)
         end
-
-        local v179 = os.clock()
-        local delivered = false
 
         while os.clock() - v179 < 1.75 do
           local basket5 = localPlayer2:FindFirstChild("Basket")
@@ -3596,7 +3549,15 @@ local function f40(p62)
             break
           end
 
-          if firetouchinterest then
+          if centerDrop then
+            if basketDrop then
+              for _, eggItem in ipairs(basket5:GetChildren()) do
+                pcall(function()
+                  basketDrop:FireServer(eggItem:GetAttribute("Egg") or eggItem.Name)
+                end)
+              end
+            end
+          elseif firetouchinterest then
             pcall(firetouchinterest, v169, baseplate, 0)
             task.wait(0.03)
             pcall(firetouchinterest, v169, baseplate, 1)
