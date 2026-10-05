@@ -825,11 +825,6 @@ if roxyHubState.TargetSpecificEgg == nil then
   roxyHubState.TargetSpecificEgg = "Any Egg (Use Rarity Filter)"
 end
 
--- Egg delivery destination. The egg selector above remains the only egg-selection control.
-if type(roxyHubState.DeliveryTargetPlayer) ~= "string" or roxyHubState.DeliveryTargetPlayer == "" then
-  roxyHubState.DeliveryTargetPlayer = "My Ranch"
-end
-
 if roxyHubState.FarmPriority == nil then
   roxyHubState.FarmPriority = "Highest Rarity First"
 end
@@ -868,6 +863,11 @@ end
 
 if roxyHubState.WeatherNotify == nil then
   roxyHubState.WeatherNotify = true
+end
+
+-- Player ranch delivery target. "My Ranch" preserves normal delivery.
+if roxyHubState.DeliveryTargetPlayer == nil then
+  roxyHubState.DeliveryTargetPlayer = "My Ranch"
 end
 
 local function f10(p11)
@@ -3343,67 +3343,6 @@ local function f39(p60, p61)
   end
 end
 
--- Resolve the ranch used by the delivery routine.
--- "My Ranch" keeps the original behavior; a selected player redirects the same
--- normal Baseplate touch/offload routine to that player's plot.
-local function f40_GetDeliveryPlot()
-  local targetName = roxyHubState.DeliveryTargetPlayer
-
-  if not targetName or targetName == "" or targetName == "My Ranch" then
-    return f12(), "My Ranch"
-  end
-
-  local targetPlayer = players:FindFirstChild(targetName)
-
-  if not targetPlayer or targetPlayer == localPlayer2 then
-    return f12(), "My Ranch"
-  end
-
-  local targetPlot
-
-  pcall(function()
-    if v15 and v15.GetPlot then
-      targetPlot = v15:GetPlot(targetPlayer)
-    end
-  end)
-
-  if not targetPlot then
-    local plots = workspaceService:FindFirstChild("Plots")
-
-    if plots then
-      for _, candidatePlot in ipairs(plots:GetChildren()) do
-        local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
-          or candidatePlot:GetAttribute("OwnerUserId")
-          or candidatePlot:GetAttribute("Owner")
-
-        if ownerAttr == targetPlayer.UserId
-          or tostring(ownerAttr) == tostring(targetPlayer.UserId) then
-          targetPlot = candidatePlot
-          break
-        end
-
-        local data = candidatePlot:FindFirstChild("Data")
-        local owner = data and data:FindFirstChild("Owner")
-
-        if owner and (owner.Value == targetPlayer
-          or tostring(owner.Value) == targetPlayer.Name
-          or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
-          targetPlot = candidatePlot
-          break
-        end
-
-        if candidatePlot.Name == targetPlayer.Name
-          or candidatePlot.Name == tostring(targetPlayer.UserId) then
-          targetPlot = candidatePlot
-          break
-        end
-      end
-    end
-  end
-
-  return targetPlot or f12(), targetPlot and targetPlayer.Name or "My Ranch"
-end
-
 local function f40(p62)
   local v162, v163, v164 = f13()
   local v165 = f12()
@@ -3411,19 +3350,78 @@ local function f40(p62)
   local cframe5, v167, connect3
 
   if v166 then
-    return
+    return false
   else
-    local deliveryPlot, deliveryLabel = f40_GetDeliveryPlot()
+    -- Resolve the delivery destination independently from the local plot.
+    -- The selected player's Baseplate is used as the actual physical drop point.
+    local deliveryPlot = v165
+    local deliveryLabel = "My Ranch"
+    local selectedName = roxyHubState.DeliveryTargetPlayer
+
+    if selectedName and selectedName ~= "" and selectedName ~= "My Ranch" then
+      local targetPlayer = players:FindFirstChild(selectedName)
+
+      if targetPlayer and targetPlayer ~= localPlayer2 then
+        local targetPlot
+
+        pcall(function()
+          if v15 and v15.GetPlot then
+            targetPlot = v15:GetPlot(targetPlayer)
+          end
+        end)
+
+        if not targetPlot then
+          local plots = workspaceService:FindFirstChild("Plots")
+
+          if plots then
+            for _, candidatePlot in ipairs(plots:GetChildren()) do
+              local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
+                or candidatePlot:GetAttribute("OwnerUserId")
+                or candidatePlot:GetAttribute("Owner")
+
+              if ownerAttr == targetPlayer.UserId
+                or tostring(ownerAttr) == tostring(targetPlayer.UserId) then
+                targetPlot = candidatePlot
+                break
+              end
+
+              local data = candidatePlot:FindFirstChild("Data")
+              local owner = data and data:FindFirstChild("Owner")
+
+              if owner and (owner.Value == targetPlayer
+                or tostring(owner.Value) == targetPlayer.Name
+                or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
+                targetPlot = candidatePlot
+                break
+              end
+
+              if candidatePlot.Name == targetPlayer.Name
+                or candidatePlot.Name == tostring(targetPlayer.UserId) then
+                targetPlot = candidatePlot
+                break
+              end
+            end
+          end
+        end
+
+        if targetPlot and targetPlot:FindFirstChild("Baseplate") then
+          deliveryPlot = targetPlot
+          deliveryLabel = targetPlayer.Name
+        end
+      end
+    end
+
     local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate")
 
     if not baseplate then
-      return
+      v33.Status = "Delivery failed: destination Baseplate not found."
+      return false
     else
       f27(v163, v164)
       local v168, v169, v170 = f13()
 
       if not v169 or not v170 then
-        return
+        return false
       else
         local v171 = p62 == "Volcanic Egg"
         local basket4 = localPlayer2:FindFirstChild("Basket")
@@ -3445,7 +3443,7 @@ local function f40(p62)
           v1232, v169, v170 = f13()
 
           if not v169 or not v170 then
-            return
+            return false
           end
         end
 
@@ -3460,8 +3458,6 @@ local function f40(p62)
 
         if magnitude4 > 15 then
           if roxyHubState.FarmMode == "Instant" then
-            v33.Status = "Instant Warp to Plot..."
-
             if v33.CurrentTween then
               pcall(function() v33.CurrentTween:Cancel() end)
               v33.CurrentTween = nil
@@ -3485,7 +3481,6 @@ local function f40(p62)
                 v169.AssemblyLinearVelocity = Vector3.zero
                 v169.AssemblyAngularVelocity = Vector3.zero
                 v169.CFrame = CFrame.new(v172)
-
                 task.wait(0.05)
               end
             end
@@ -3527,6 +3522,8 @@ local function f40(p62)
           end
         end
 
+        -- Touch the selected ranch's Baseplate, not the local ranch's Baseplate.
+        -- Repeat briefly because the server may process the basket asynchronously.
         if firetouchinterest then
           pcall(firetouchinterest, v169, baseplate, 0)
           task.wait(0.04)
@@ -3534,11 +3531,14 @@ local function f40(p62)
         end
 
         local v179 = os.clock()
+        local delivered = false
 
-        while os.clock() - v179 < 1.5 do
+        while os.clock() - v179 < 1.75 do
           local basket5 = localPlayer2:FindFirstChild("Basket")
+          local basketCount = basket5 and #basket5:GetChildren() or 0
 
-          if not basket5 or #basket5:GetChildren() == 0 then
+          if basketCount == 0 then
+            delivered = true
             break
           end
 
@@ -3551,7 +3551,14 @@ local function f40(p62)
           task.wait(0.05)
         end
 
-        if roxyHubState.AutoHatchPlot then
+        -- Never continue with plot automation as if a cross-ranch delivery succeeded
+        -- when the server did not actually remove the basket egg.
+        if not delivered then
+          v33.Status = "Delivery failed: egg still in basket."
+          return false
+        end
+
+        if roxyHubState.AutoHatchPlot and deliveryLabel == "My Ranch" then
           local eggs4 = v165:FindFirstChild("Eggs")
 
           if eggs4 then
@@ -3608,7 +3615,7 @@ local function f40(p62)
           end)
         end
 
-        if roxyHubState.AutoPlaceNest then
+        if roxyHubState.AutoPlaceNest and deliveryLabel == "My Ranch" then
           local spawnNest = roxyHubState.SpawnNest and 15 or 10
           local v180 = f16()
 
@@ -3746,7 +3753,8 @@ local function f40(p62)
           end
         end
 
-        if roxyHubState.AutoUnlockNests and localPlayer2:GetAttribute("NoNest") ~= true then
+        if roxyHubState.AutoUnlockNests and deliveryLabel == "My Ranch"
+          and localPlayer2:GetAttribute("NoNest") ~= true then
           local nests6 = v165:FindFirstChild("Nests")
 
           if nests6 then
@@ -3772,9 +3780,11 @@ local function f40(p62)
           end
         end
 
-        v33.Status = "Delivery Complete!"
+        v33.Status = deliveryLabel == "My Ranch"
+          and "Delivery Complete!"
+          or ("Delivered to " .. tostring(deliveryLabel) .. "'s Ranch!")
         task.wait(0.05)
-        return
+        return true
       end
     end
   end
@@ -5655,39 +5665,47 @@ Mode: %s | Sync Delay: %.2fs]], tostring(v33.Target or "None"), tostring(v33.Tar
     end,
   })
 
-  -- Delivery destination uses the existing Target Specific Egg selection.
-  -- This dropdown only decides whose ranch receives the egg.
-  local deliveryPlayerValues = { "My Ranch" }
-
-  for _, player in ipairs(players:GetPlayers()) do
-    if player ~= localPlayer2 then
-      table.insert(deliveryPlayerValues, player.Name)
-    end
-  end
-
-  if roxyHubState.DeliveryTargetPlayer ~= "My Ranch" then
-    local foundDeliveryPlayer = false
-
-    for _, playerName in ipairs(deliveryPlayerValues) do
-      if playerName == roxyHubState.DeliveryTargetPlayer then
-        foundDeliveryPlayer = true
-        break
-      end
-    end
-
-    if not foundDeliveryPlayer then
-      roxyHubState.DeliveryTargetPlayer = "My Ranch"
-    end
-  end
-
   v333.DeliveryTargetPlayer = section2:Dropdown({
-    Title = "Deliver Egg To",
-    Values = deliveryPlayerValues,
-    Value = roxyHubState.DeliveryTargetPlayer,
+    Title = "Deliver Eggs To Player",
+    Values = { "My Ranch" },
+    Value = roxyHubState.DeliveryTargetPlayer or "My Ranch",
     Callback = function(value81)
       roxyHubState.DeliveryTargetPlayer = value81 or "My Ranch"
     end,
   })
+
+  local function refreshDeliveryPlayers()
+    local playerValues = { "My Ranch" }
+
+    for _, player in ipairs(players:GetPlayers()) do
+      if player ~= localPlayer2 then
+        table.insert(playerValues, player.Name)
+      end
+    end
+
+    if v333.DeliveryTargetPlayer and v333.DeliveryTargetPlayer.SetValues then
+      pcall(function() v333.DeliveryTargetPlayer:SetValues(playerValues) end)
+    end
+
+    local currentTarget = roxyHubState.DeliveryTargetPlayer
+    if currentTarget ~= "My Ranch" and not players:FindFirstChild(currentTarget) then
+      roxyHubState.DeliveryTargetPlayer = "My Ranch"
+      if v333.DeliveryTargetPlayer and v333.DeliveryTargetPlayer.Set then
+        pcall(function() v333.DeliveryTargetPlayer:Set("My Ranch") end)
+      end
+    end
+  end
+
+  refreshDeliveryPlayers()
+  table.insert(_G.RoxyHubConnections, players.PlayerAdded:Connect(function()
+    task.defer(refreshDeliveryPlayers)
+  end))
+  table.insert(_G.RoxyHubConnections, players.PlayerRemoving:Connect(function(player)
+    if roxyHubState.DeliveryTargetPlayer == player.Name then
+      roxyHubState.DeliveryTargetPlayer = "My Ranch"
+    end
+    task.defer(refreshDeliveryPlayers)
+  end))
 
   v333.FarmPriority = section2:Dropdown({
     Title = "Target Priority Order",
