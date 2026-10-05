@@ -3353,7 +3353,7 @@ local function f40(p62)
     return false
   else
     -- Resolve the delivery destination independently from the local plot.
-    -- The selected player's Baseplate is used as the actual physical drop point.
+    -- Never silently fall back to the local ranch for a selected player.
     local deliveryPlot = v165
     local deliveryLabel = "My Ranch"
     local selectedName = roxyHubState.DeliveryTargetPlayer
@@ -3361,57 +3361,111 @@ local function f40(p62)
     if selectedName and selectedName ~= "" and selectedName ~= "My Ranch" then
       local targetPlayer = players:FindFirstChild(selectedName)
 
-      if targetPlayer and targetPlayer ~= localPlayer2 then
-        local targetPlot
+      if not targetPlayer or targetPlayer == localPlayer2 then
+        v33.Status = "Delivery failed: selected player is no longer in the server."
+        return false
+      end
 
-        pcall(function()
-          if v15 and v15.GetPlot then
-            targetPlot = v15:GetPlot(targetPlayer)
+      local targetPlot
+
+      -- Prefer the game's own plot resolver.
+      pcall(function()
+        if v15 and v15.GetPlot then
+          targetPlot = v15:GetPlot(targetPlayer)
+        end
+      end)
+
+      -- Match the same ownership patterns used by f12().
+      if not targetPlot then
+        local plots = workspaceService:FindFirstChild("Plots")
+
+        if plots then
+          for _, candidatePlot in ipairs(plots:GetChildren()) do
+            local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
+              or candidatePlot:GetAttribute("OwnerUserId")
+              or candidatePlot:GetAttribute("Owner")
+
+            if ownerAttr == targetPlayer.UserId
+              or tostring(ownerAttr) == tostring(targetPlayer.UserId)
+              or tostring(ownerAttr) == targetPlayer.Name then
+              targetPlot = candidatePlot
+              break
+            end
+
+            local data = candidatePlot:FindFirstChild("Data")
+            local owner = data and data:FindFirstChild("Owner")
+
+            if owner and (owner.Value == targetPlayer
+              or tostring(owner.Value) == targetPlayer.Name
+              or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
+              targetPlot = candidatePlot
+              break
+            end
+
+            if candidatePlot.Name == targetPlayer.Name
+              or candidatePlot.Name == tostring(targetPlayer.UserId) then
+              targetPlot = candidatePlot
+              break
+            end
+
+            local pets = candidatePlot:FindFirstChild("Pets")
+            if pets then
+              for _, pet in ipairs(pets:GetChildren()) do
+                local petOwner = pet:GetAttribute("OwnerUserId") or pet:GetAttribute("Owner")
+                if petOwner == targetPlayer.UserId
+                  or tostring(petOwner) == tostring(targetPlayer.UserId)
+                  or tostring(petOwner) == targetPlayer.Name then
+                  targetPlot = candidatePlot
+                  break
+                end
+              end
+            end
+
+            if targetPlot then
+              break
+            end
           end
-        end)
+        end
+      end
 
-        if not targetPlot then
-          local plots = workspaceService:FindFirstChild("Plots")
+      -- Spatial fallback for games where ownership attributes are not exposed.
+      if not targetPlot then
+        local targetRoot = targetPlayer.Character
+          and (targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+            or targetPlayer.Character:FindFirstChildWhichIsA("BasePart"))
+        local plots = workspaceService:FindFirstChild("Plots")
+        local bestPlot, bestDistance = nil, math.huge
 
-          if plots then
-            for _, candidatePlot in ipairs(plots:GetChildren()) do
-              local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
-                or candidatePlot:GetAttribute("OwnerUserId")
-                or candidatePlot:GetAttribute("Owner")
-
-              if ownerAttr == targetPlayer.UserId
-                or tostring(ownerAttr) == tostring(targetPlayer.UserId) then
-                targetPlot = candidatePlot
-                break
-              end
-
-              local data = candidatePlot:FindFirstChild("Data")
-              local owner = data and data:FindFirstChild("Owner")
-
-              if owner and (owner.Value == targetPlayer
-                or tostring(owner.Value) == targetPlayer.Name
-                or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
-                targetPlot = candidatePlot
-                break
-              end
-
-              if candidatePlot.Name == targetPlayer.Name
-                or candidatePlot.Name == tostring(targetPlayer.UserId) then
-                targetPlot = candidatePlot
-                break
+        if targetRoot and plots then
+          for _, candidatePlot in ipairs(plots:GetChildren()) do
+            local candidateBaseplate = candidatePlot:FindFirstChild("Baseplate", true)
+            if candidateBaseplate and candidateBaseplate:IsA("BasePart") then
+              local distance = (candidateBaseplate.Position - targetRoot.Position).Magnitude
+              if distance < bestDistance then
+                bestDistance = distance
+                bestPlot = candidatePlot
               end
             end
           end
         end
 
-        if targetPlot and targetPlot:FindFirstChild("Baseplate") then
-          deliveryPlot = targetPlot
-          deliveryLabel = targetPlayer.Name
+        if bestPlot and bestDistance <= 1000 then
+          targetPlot = bestPlot
         end
       end
+
+      local targetBaseplate = targetPlot and targetPlot:FindFirstChild("Baseplate", true)
+
+      if not targetPlot or not targetBaseplate or not targetBaseplate:IsA("BasePart") then
+        v33.Status = "Delivery failed: could not locate " .. tostring(targetPlayer.Name) .. "'s ranch."
+        return false
+      end
+
+      deliveryPlot = targetPlot
+      deliveryLabel = targetPlayer.Name
     end
 
-    local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate")
+    local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate", true)
 
     if not baseplate then
       v33.Status = "Delivery failed: destination Baseplate not found."
