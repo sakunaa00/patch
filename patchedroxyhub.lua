@@ -825,6 +825,11 @@ if roxyHubState.TargetSpecificEgg == nil then
   roxyHubState.TargetSpecificEgg = "Any Egg (Use Rarity Filter)"
 end
 
+-- Egg delivery destination. The egg selector above remains the only egg-selection control.
+if type(roxyHubState.DeliveryTargetPlayer) ~= "string" or roxyHubState.DeliveryTargetPlayer == "" then
+  roxyHubState.DeliveryTargetPlayer = "My Ranch"
+end
+
 if roxyHubState.FarmPriority == nil then
   roxyHubState.FarmPriority = "Highest Rarity First"
 end
@@ -863,11 +868,6 @@ end
 
 if roxyHubState.WeatherNotify == nil then
   roxyHubState.WeatherNotify = true
-end
-
--- Player ranch delivery target. "My Ranch" preserves normal delivery.
-if roxyHubState.DeliveryTargetPlayer == nil then
-  roxyHubState.DeliveryTargetPlayer = "My Ranch"
 end
 
 local function f10(p11)
@@ -1897,136 +1897,81 @@ local function f26()
   return true
 end
 
-local function f40_FindMainVolcanoEntrance()
-  local volcano = workspaceService:FindFirstChild("Volcano")
-  if not volcano then
-    return nil
-  end
-
-  -- Prefer the game's real entrance/door over hard-coded coordinates.
-  local preferredNames = {
-    "MainEntrance", "Main Entrance", "VolcanoEntrance",
-    "LairEntrance", "Lair Entrance", "Entrance",
-    "MainDoor", "Main Door", "LairDoor", "Lair Door",
-  }
-
-  for _, name in ipairs(preferredNames) do
-    local obj = volcano:FindFirstChild(name, true)
-    if obj and obj:IsA("BasePart") then
-      return obj
-    end
-    if obj and obj:IsA("Model") then
-      local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
-      if part then
-        return part
-      end
-    end
-  end
-
-  -- Last resort: find a BasePart whose name contains both entrance/door/lair hints.
-  for _, obj in ipairs(volcano:GetDescendants()) do
-    if obj:IsA("BasePart") then
-      local n = string.lower(obj.Name)
-      if (n:find("entrance") or n:find("door")) and (n:find("main") or n:find("lair") or n:find("volcano")) then
-        return obj
-      end
-    end
-  end
-
-  return nil
-end
-
-local function f40_TouchEntrance(rootPart, entrance, holdTime)
-  if not rootPart or not entrance or not firetouchinterest then
-    return false
-  end
-
-  holdTime = holdTime or 0.08
-  pcall(function()
-    firetouchinterest(rootPart, entrance, 0)
-  end)
-  task.wait(holdTime)
-  pcall(function()
-    firetouchinterest(rootPart, entrance, 1)
-  end)
-  return true
-end
-
 local function f27(p26, p27)
   if not p26 then
     return false
-  end
+  else
+    local v89 = (p26.Position - vector).Magnitude < 1500
+    local v90 = false
+    local basket2 = localPlayer2:FindFirstChild("Basket")
 
-  local nearVolcano = (p26.Position - vector).Magnitude < 1500
-  local hasVolcanicEgg = false
-  local basket2 = localPlayer2:FindFirstChild("Basket")
-
-  if basket2 then
-    for _, value28 in ipairs(basket2:GetChildren()) do
-      if value28.Name == "Volcanic Egg"
-        or value28:GetAttribute("Egg") == "Volcanic Egg"
-        or value28:GetAttribute("Escaping") == true
-        or value28:GetAttribute("VolcanoUntil") ~= nil then
-        hasVolcanicEgg = true
-        break
+    if basket2 then
+      for index23, value28 in ipairs(basket2:GetChildren()) do
+        if value28.Name == "Volcanic Egg" or value28:GetAttribute("Egg") == "Volcanic Egg"
+          or value28:GetAttribute("Escaping") == true
+          or value28:GetAttribute("VolcanoUntil") ~= nil then
+          v90 = true
+          break
+        end
       end
     end
-  end
 
-  if not nearVolcano or not (hasVolcanicEgg or localPlayer2:GetAttribute("InVolcano") == true) then
-    return false
-  end
+    if v89 and (v90 or localPlayer2:GetAttribute("InVolcano") == true) then
+      v33.Status = "Escaping Volcano through Lair Door..."
 
-  local volcano = workspaceService:FindFirstChild("Volcano")
-  local volcanoEntrance = f40_FindMainVolcanoEntrance()
-  local volcanoValidate = volcano and volcano:FindFirstChild("VolcanoValidate", true)
+      p26.AssemblyLinearVelocity = Vector3.zero
+      p26.AssemblyAngularVelocity = Vector3.zero
+      p26.CFrame = cframe2
 
-  v33.Status = "Leaving Volcano through Main Entrance..."
-
-  for attempt = 1, 3 do
-    -- This is intentionally the exact CFrame used by the existing Teleports
-    -- tab for "Volcano Lair Door (Entrance)".
-    p26.AssemblyLinearVelocity = Vector3.zero
-    p26.AssemblyAngularVelocity = Vector3.zero
-    p26.CFrame = cframe
-    task.wait(0.12)
-
-    if firetouchinterest then
-      if volcanoEntrance then
-        pcall(firetouchinterest, p26, volcanoEntrance, 0)
-      end
-      if volcanoValidate then
-        pcall(firetouchinterest, p26, volcanoValidate, 0)
-      end
       task.wait(0.08)
-      if volcanoEntrance then
-        pcall(firetouchinterest, p26, volcanoEntrance, 1)
-      end
-      if volcanoValidate then
-        pcall(firetouchinterest, p26, volcanoValidate, 1)
-      end
-    end
+      local volcano = workspaceService:FindFirstChild("Volcano")
 
-    local started = os.clock()
-    while os.clock() - started < 0.7 do
-      if localPlayer2:GetAttribute("InVolcano") ~= true then
-        v33.Status = "Volcano Escaped!"
-        return true
-      end
-      task.wait(0.04)
-    end
+      local volcanoEntrance = volcano
+      volcanoEntrance = volcano and volcano:FindFirstChild("VolcanoEntrance")
 
-    if attempt < 3 then
-      -- Refresh the same known entrance position before retrying.
+      local volcanoValidate = volcano
+      volcanoValidate = volcano and volcano:FindFirstChild("VolcanoValidate")
+
+      if firetouchinterest then
+        if volcanoValidate then
+          pcall(firetouchinterest, p26, volcanoValidate, 0)
+        end
+
+        if volcanoEntrance then
+          pcall(firetouchinterest, p26, volcanoEntrance, 0)
+        end
+      end
+
       p26.AssemblyLinearVelocity = Vector3.zero
       p26.AssemblyAngularVelocity = Vector3.zero
       p26.CFrame = cframe
-      task.wait(0.15)
-    end
-  end
 
-  v33.Status = "Volcano exit still loading..."
-  return localPlayer2:GetAttribute("InVolcano") ~= true
+      if firetouchinterest then
+        if volcanoValidate then
+          pcall(firetouchinterest, p26, volcanoValidate, 1)
+        end
+
+        if volcanoEntrance then
+          pcall(firetouchinterest, p26, volcanoEntrance, 1)
+        end
+      end
+
+      local v91 = os.clock()
+
+      while os.clock() - v91 < 0.5 do
+        if localPlayer2:GetAttribute("InVolcano") ~= true then
+          break
+        end
+
+        task.wait(0.04)
+      end
+
+      v33.Status = "Volcano Escaped!"
+      return true
+    end
+
+    return false
+  end
 end
 
 runService.Stepped:Connect(function()
@@ -2213,72 +2158,71 @@ local function f31(p30, p31)
     return false
   end
 
+  local create3
+
   if localPlayer2:GetAttribute("InVolcano") == true
     and localPlayer2:GetAttribute("VolcanoValidated") == true then
     return true
-  end
+  else
+    v33.Status = "Warping to Volcano Sky Platform..."
+    f7()
 
-  -- Use the exact same CFrame as the built-in Teleports tab:
-  -- "Volcano (Entrance / Volkaris Lair)" / "Volcano Lair Door (Entrance)".
-  -- This is the game's known main entrance location, so don't invent a
-  -- separate entrance coordinate for farming.
-  local volcano = workspaceService:FindFirstChild("Volcano")
-  local volcanoEntrance = f40_FindMainVolcanoEntrance()
-  local volcanoValidate = volcano and volcano:FindFirstChild("VolcanoValidate", true)
-
-  v33.Status = "Going through Main Volcano Entrance..."
-
-  for attempt = 1, 3 do
     p30.AssemblyLinearVelocity = Vector3.zero
     p30.AssemblyAngularVelocity = Vector3.zero
     p30.CFrame = cframe
-    task.wait(0.15)
 
-    -- Use the same entrance part the game exposes when possible, but keep
-    -- the built-in teleport CFrame as the authoritative position.
-    if firetouchinterest then
-      if volcanoEntrance then
-        pcall(firetouchinterest, p30, volcanoEntrance, 0)
-      end
-      if volcanoValidate then
-        pcall(firetouchinterest, p30, volcanoValidate, 0)
-      end
-      task.wait(0.08)
-      if volcanoEntrance then
-        pcall(firetouchinterest, p30, volcanoEntrance, 1)
-      end
-      if volcanoValidate then
-        pcall(firetouchinterest, p30, volcanoValidate, 1)
-      end
-    end
+    task.wait(0.12)
+    local volcano2 = workspaceService:FindFirstChild("Volcano")
+    local volcanoEntrance2 = volcano2 and volcano2:FindFirstChild("VolcanoEntrance")
+    local volcanoValidate2 = volcano2 and volcano2:FindFirstChild("VolcanoValidate")
+    v33.Status = "Tweening into Cave Doors..."
+    local v109 = math.clamp((cframe2.Position - p30.Position).Magnitude / 40, 0.6, 1.6)
 
-    -- Give the server time to acknowledge the entrance.
-    local started = os.clock()
-    while os.clock() - started < 0.65 do
+    create3 = tweenService:Create(p30, TweenInfo.new(v109, Enum.EasingStyle.Linear), {
+      CFrame = cframe2,
+    })
+
+    create3:Play()
+
+    local v110 = os.clock()
+
+    while os.clock() - v110 < v109 + 0.5 do
+      if firetouchinterest then
+        if volcanoEntrance2 then
+          pcall(firetouchinterest, p30, volcanoEntrance2, 0)
+        end
+
+        if volcanoValidate2 then
+          pcall(firetouchinterest, p30, volcanoValidate2, 0)
+        end
+      end
+
       if localPlayer2:GetAttribute("InVolcano") == true
         and localPlayer2:GetAttribute("VolcanoValidated") == true then
-        v33.Status = "Volcano Entrance Confirmed!"
-        return true
+        break
       end
-      task.wait(0.04)
+
+      task.wait(0.03)
     end
 
-    -- Only use the old inner-door point as a fallback if the main entrance
-    -- position did not register. This preserves the existing route without
-    -- making it the primary entrance.
-    if attempt < 3 then
-      p30.AssemblyLinearVelocity = Vector3.zero
-      p30.AssemblyAngularVelocity = Vector3.zero
-      p30.CFrame = cframe2
-      task.wait(0.12)
-      p30.CFrame = cframe
-      task.wait(0.12)
+    pcall(function() create3:Cancel() end)
+
+    if firetouchinterest then
+      if volcanoEntrance2 then
+        pcall(firetouchinterest, p30, volcanoEntrance2, 1)
+      end
+
+      if volcanoValidate2 then
+        pcall(firetouchinterest, p30, volcanoValidate2, 1)
+      end
     end
+
+    p30.AssemblyLinearVelocity = Vector3.zero
+    p30.AssemblyAngularVelocity = Vector3.zero
+
+    task.wait(0.05)
+    return localPlayer2:GetAttribute("InVolcano") == true
   end
-
-  v33.Status = "Volcano entrance not ready - retrying..."
-  return localPlayer2:GetAttribute("InVolcano") == true
-    and localPlayer2:GetAttribute("VolcanoValidated") == true
 end
 
 local function f35_ESPFolder()
@@ -3399,28 +3343,65 @@ local function f39(p60, p61)
   end
 end
 
-local function f40_GetRanchCenter()
-  local plots = workspaceService:FindFirstChild("Plots")
-  if not plots then
-    return nil
+-- Resolve the ranch used by the delivery routine.
+-- "My Ranch" keeps the original behavior; a selected player redirects the same
+-- normal Baseplate touch/offload routine to that player's plot.
+local function f40_GetDeliveryPlot()
+  local targetName = roxyHubState.DeliveryTargetPlayer
+
+  if not targetName or targetName == "" or targetName == "My Ranch" then
+    return f12(), "My Ranch"
   end
 
-  local total = Vector3.zero
-  local count = 0
+  local targetPlayer = players:FindFirstChild(targetName)
 
-  for _, candidatePlot in ipairs(plots:GetChildren()) do
-    local candidateBaseplate = candidatePlot:FindFirstChild("Baseplate", true)
-    if candidateBaseplate and candidateBaseplate:IsA("BasePart") then
-      total = total + candidateBaseplate.Position
-      count = count + 1
+  if not targetPlayer or targetPlayer == localPlayer2 then
+    return f12(), "My Ranch"
+  end
+
+  local targetPlot
+
+  pcall(function()
+    if v15 and v15.GetPlot then
+      targetPlot = v15:GetPlot(targetPlayer)
+    end
+  end)
+
+  if not targetPlot then
+    local plots = workspaceService:FindFirstChild("Plots")
+
+    if plots then
+      for _, candidatePlot in ipairs(plots:GetChildren()) do
+        local ownerAttr = candidatePlot:GetAttribute("NestsOwnerLoaded")
+          or candidatePlot:GetAttribute("OwnerUserId")
+          or candidatePlot:GetAttribute("Owner")
+
+        if ownerAttr == targetPlayer.UserId
+          or tostring(ownerAttr) == tostring(targetPlayer.UserId) then
+          targetPlot = candidatePlot
+          break
+        end
+
+        local data = candidatePlot:FindFirstChild("Data")
+        local owner = data and data:FindFirstChild("Owner")
+
+        if owner and (owner.Value == targetPlayer
+          or tostring(owner.Value) == targetPlayer.Name
+          or tostring(owner.Value) == tostring(targetPlayer.UserId)) then
+          targetPlot = candidatePlot
+          break
+        end
+
+        if candidatePlot.Name == targetPlayer.Name
+          or candidatePlot.Name == tostring(targetPlayer.UserId) then
+          targetPlot = candidatePlot
+          break
+        end
+      end
     end
   end
 
-  if count == 0 then
-    return nil
-  end
-
-  return total / count
+  return targetPlot or f12(), targetPlot and targetPlayer.Name or "My Ranch"
 end
 
 local function f40(p62)
@@ -3430,77 +3411,19 @@ local function f40(p62)
   local cframe5, v167, connect3
 
   if v166 then
-    return false
+    return
   else
-    -- If we are coming from the volcano/lair, finish the exit before
-    -- attempting any delivery interaction. A failed exit must never be
-    -- treated as a successful delivery.
-    local wasInVolcano = localPlayer2:GetAttribute("InVolcano") == true
-    if wasInVolcano then
-      local escaped = f27(v163, v164)
-      if not escaped or localPlayer2:GetAttribute("InVolcano") == true then
-        v33.Status = "Delivery paused: waiting for Volcano main entrance exit..."
-        task.wait(0.25)
-        escaped = f27(v163, v164)
-        if not escaped or localPlayer2:GetAttribute("InVolcano") == true then
-          v33.Status = "Delivery failed: could not exit Volcano through the main entrance."
-          return false
-        end
-      end
-    end
+    local deliveryPlot, deliveryLabel = f40_GetDeliveryPlot()
+    local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate")
 
-    -- Resolve the delivery destination independently from the local plot.
-    -- Never silently fall back to the local ranch for a selected player.
-    local deliveryPlot = v165
-    local deliveryLabel = "My Ranch"
-    local selectedName = roxyHubState.DeliveryTargetPlayer
-    local centerDrop = false
-
-    if selectedName and selectedName ~= "" and selectedName ~= "My Ranch" then
-      local targetPlayer = players:FindFirstChild(selectedName)
-
-      if not targetPlayer or targetPlayer == localPlayer2 then
-        v33.Status = "Delivery failed: selected player is no longer in the server."
-        return false
-      end
-
-      -- Cross-ranch delivery fallback: use the calculated center of all ranches.
-      centerDrop = true
-      deliveryLabel = targetPlayer.Name
-    end
-
-    local baseplate = deliveryPlot and deliveryPlot:FindFirstChild("Baseplate", true)
-    local destinationPosition
-
-    if centerDrop then
-      destinationPosition = f40_GetRanchCenter()
-      if not destinationPosition then
-        v33.Status = "Delivery failed: could not calculate ranch center."
-        return false
-      end
-      v33.Status = "Dropping egg at the center of all ranches for " .. tostring(deliveryLabel) .. "..."
-    elseif not baseplate then
-      v33.Status = "Delivery failed: destination Baseplate not found."
-      return false
+    if not baseplate then
+      return
     else
-      destinationPosition = baseplate.Position
-    end
-
-    if centerDrop or baseplate then
-      -- Exit is already handled above when necessary; for normal deliveries
-      -- keep the existing safety check without allowing a failed escape to continue.
-      if localPlayer2:GetAttribute("InVolcano") == true then
-        local escaped = f27(v163, v164)
-        if not escaped or localPlayer2:GetAttribute("InVolcano") == true then
-          v33.Status = "Delivery failed: Volcano main entrance did not open."
-          return false
-        end
-      end
-
+      f27(v163, v164)
       local v168, v169, v170 = f13()
 
       if not v169 or not v170 then
-        return false
+        return
       else
         local v171 = p62 == "Volcanic Egg"
         local basket4 = localPlayer2:FindFirstChild("Basket")
@@ -3522,7 +3445,7 @@ local function f40(p62)
           v1232, v169, v170 = f13()
 
           if not v169 or not v170 then
-            return false
+            return
           end
         end
 
@@ -3532,11 +3455,13 @@ local function f40(p62)
           v33.Status = "Delivering to " .. tostring(deliveryLabel) .. "'s Ranch..."
         end
 
-        local v172 = destinationPosition + Vector3.new(0, 3.5, 0)
+        local v172 = baseplate.Position + Vector3.new(0, 3.5, 0)
         local magnitude4 = (v172 - v169.Position).Magnitude
 
         if magnitude4 > 15 then
           if roxyHubState.FarmMode == "Instant" then
+            v33.Status = "Instant Warp to Plot..."
+
             if v33.CurrentTween then
               pcall(function() v33.CurrentTween:Cancel() end)
               v33.CurrentTween = nil
@@ -3560,6 +3485,7 @@ local function f40(p62)
                 v169.AssemblyLinearVelocity = Vector3.zero
                 v169.AssemblyAngularVelocity = Vector3.zero
                 v169.CFrame = CFrame.new(v172)
+
                 task.wait(0.05)
               end
             end
@@ -3601,45 +3527,22 @@ local function f40(p62)
           end
         end
 
-        local v179 = os.clock()
-        local delivered = false
-
-        if centerDrop then
-          -- Use the game's existing basket-drop remote at the calculated ranch center.
-          -- This avoids requiring ownership of another player's ranch.
-          local basket5 = localPlayer2:FindFirstChild("Basket")
-          if basket5 and basketDrop then
-            for _, eggItem in ipairs(basket5:GetChildren()) do
-              pcall(function()
-                basketDrop:FireServer(eggItem:GetAttribute("Egg") or eggItem.Name)
-              end)
-              task.wait(0.08)
-            end
-          end
-        elseif firetouchinterest then
+        if firetouchinterest then
           pcall(firetouchinterest, v169, baseplate, 0)
           task.wait(0.04)
           pcall(firetouchinterest, v169, baseplate, 1)
         end
 
-        while os.clock() - v179 < 1.75 do
-          local basket5 = localPlayer2:FindFirstChild("Basket")
-          local basketCount = basket5 and #basket5:GetChildren() or 0
+        local v179 = os.clock()
 
-          if basketCount == 0 then
-            delivered = true
+        while os.clock() - v179 < 1.5 do
+          local basket5 = localPlayer2:FindFirstChild("Basket")
+
+          if not basket5 or #basket5:GetChildren() == 0 then
             break
           end
 
-          if centerDrop then
-            if basketDrop then
-              for _, eggItem in ipairs(basket5:GetChildren()) do
-                pcall(function()
-                  basketDrop:FireServer(eggItem:GetAttribute("Egg") or eggItem.Name)
-                end)
-              end
-            end
-          elseif firetouchinterest then
+          if firetouchinterest then
             pcall(firetouchinterest, v169, baseplate, 0)
             task.wait(0.03)
             pcall(firetouchinterest, v169, baseplate, 1)
@@ -3648,14 +3551,7 @@ local function f40(p62)
           task.wait(0.05)
         end
 
-        -- Never continue with plot automation as if a cross-ranch delivery succeeded
-        -- when the server did not actually remove the basket egg.
-        if not delivered then
-          v33.Status = "Delivery failed: egg still in basket."
-          return false
-        end
-
-        if roxyHubState.AutoHatchPlot and deliveryLabel == "My Ranch" then
+        if roxyHubState.AutoHatchPlot then
           local eggs4 = v165:FindFirstChild("Eggs")
 
           if eggs4 then
@@ -3712,7 +3608,7 @@ local function f40(p62)
           end)
         end
 
-        if roxyHubState.AutoPlaceNest and deliveryLabel == "My Ranch" then
+        if roxyHubState.AutoPlaceNest then
           local spawnNest = roxyHubState.SpawnNest and 15 or 10
           local v180 = f16()
 
@@ -3850,8 +3746,7 @@ local function f40(p62)
           end
         end
 
-        if roxyHubState.AutoUnlockNests and deliveryLabel == "My Ranch"
-          and localPlayer2:GetAttribute("NoNest") ~= true then
+        if roxyHubState.AutoUnlockNests and localPlayer2:GetAttribute("NoNest") ~= true then
           local nests6 = v165:FindFirstChild("Nests")
 
           if nests6 then
@@ -3877,11 +3772,9 @@ local function f40(p62)
           end
         end
 
-        v33.Status = deliveryLabel == "My Ranch"
-          and "Delivery Complete!"
-          or ("Delivered to " .. tostring(deliveryLabel) .. "'s Ranch!")
+        v33.Status = "Delivery Complete!"
         task.wait(0.05)
-        return true
+        return
       end
     end
   end
@@ -3956,24 +3849,8 @@ task.spawn(function()
             if v200
               and (localPlayer2:GetAttribute("InVolcano") ~= true
                 or localPlayer2:GetAttribute("VolcanoValidated") ~= true) then
-              v33.Status = "Entering Volcano through Main Entrance..."
-              local enteredVolcano = f31(v196, hum)
-
-              if not enteredVolcano
-                or localPlayer2:GetAttribute("InVolcano") ~= true
-                or localPlayer2:GetAttribute("VolcanoValidated") ~= true then
-                v33.Status = "Volcano entrance not ready - retrying..."
-                task.wait(0.25)
-                enteredVolcano = f31(v196, hum)
-              end
-
-              if not enteredVolcano
-                or localPlayer2:GetAttribute("InVolcano") ~= true
-                or localPlayer2:GetAttribute("VolcanoValidated") ~= true then
-                v33.Status = "Delivery paused: could not enter Volcano through the main entrance."
-                v199 = true
-              end
-
+              v33.Status = "Entering Volcano (Activating Scorching)..."
+              f31(v196, hum)
               v1443, v196 = f13()
             end
 
@@ -5614,6 +5491,7 @@ local v333 = {}
 
 local function f48(p75, p76, p77)
   local v334 = os.clock()
+  f1(0.76, "Building " .. p76 .. " tab...")
 
   local v335, v336 = xpcall(p77, function(p78)
     if debug and debug.traceback then
@@ -5645,6 +5523,7 @@ local function f48(p75, p76, p77)
     print(string.format("[RoxyHub] %s tab built in %.2fs", p76, os.clock() - v334))
   end
 
+  task.wait()
 end
 
 f48(autoFarmTab, "Auto Farm", function()
@@ -5776,9 +5655,39 @@ Mode: %s | Sync Delay: %.2fs]], tostring(v33.Target or "None"), tostring(v33.Tar
     end,
   })
 
-  -- Player-delivery UI intentionally removed.
-  -- The farming/delivery engine remains untouched.
-  -- The delivery engine/state is left untouched; only its selector UI is hidden.
+  -- Delivery destination uses the existing Target Specific Egg selection.
+  -- This dropdown only decides whose ranch receives the egg.
+  local deliveryPlayerValues = { "My Ranch" }
+
+  for _, player in ipairs(players:GetPlayers()) do
+    if player ~= localPlayer2 then
+      table.insert(deliveryPlayerValues, player.Name)
+    end
+  end
+
+  if roxyHubState.DeliveryTargetPlayer ~= "My Ranch" then
+    local foundDeliveryPlayer = false
+
+    for _, playerName in ipairs(deliveryPlayerValues) do
+      if playerName == roxyHubState.DeliveryTargetPlayer then
+        foundDeliveryPlayer = true
+        break
+      end
+    end
+
+    if not foundDeliveryPlayer then
+      roxyHubState.DeliveryTargetPlayer = "My Ranch"
+    end
+  end
+
+  v333.DeliveryTargetPlayer = section2:Dropdown({
+    Title = "Deliver Egg To",
+    Values = deliveryPlayerValues,
+    Value = roxyHubState.DeliveryTargetPlayer,
+    Callback = function(value81)
+      roxyHubState.DeliveryTargetPlayer = value81 or "My Ranch"
+    end,
+  })
 
   v333.FarmPriority = section2:Dropdown({
     Title = "Target Priority Order",
